@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>FloodXplain: post-flood impact analysis using Deep learning and XAI</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<canvas id="bg-canvas"></canvas>
+<div id="pt"></div>
+
+<nav>
+  <a href="/" class="logo"><div class="logo-mark">FXP</div>FloodXPlain</a>
+  <div class="vr"></div>
+      <div class="nav-links">
+      <a href="/" class="active">Home</a>
+      <a href="/static/damage.html"><span class="nav-ico">&#128308;</span>Damage</a>
+      <a href="/static/infrastructure.html"><span class="nav-ico">&#127959;</span>Infrastructure</a>
+      <a href="/static/recovery.html"><span class="nav-ico">&#128640;</span>Recovery</a>
+      <a href="/static/reporting.html"><span class="nav-ico">&#128226;</span>Reporting</a>
+  </div>
+  <div class="nav-end"><span class="pulse"></span><span class="nav-tag">System Online</span></div>
+</nav>
+
+<section class="hero">
+  <div class="hero-glow"></div>
+  <div class="hero-tag"><span class="eyebrow-dot"></span> Andhra Pradesh</div>
+  <h1 class="hero-title">
+    FloodXplain:
+    <span class="acc"> post-flood impact analysis</span>
+    <span class="dim">using Deep learning and XAI</span>
+  </h1>
+  <p class="hero-sub">Upload satellite or drone imagery for ResNet-50 flood/non-flood classification, with GradCAM and GradCAM++ explanations, safe zone detection, rescue deployment mapping, and exportable field reports.</p>
+  <div class="hero-cta">
+    <a href="/static/damage.html" class="btn btn-primary">🚀 Start Analysis</a>
+    <a href="/static/infrastructure.html" class="btn btn-ghost">View Damage Map →</a>
+  </div>
+
+  <div class="hero-stats">
+    <div class="hs"><div class="hs-n">ResNet-50</div><div class="hs-l">CNN Model</div></div>
+    <div class="hs"><div class="hs-n">80/20</div><div class="hs-l">Train/Val Split</div></div>
+    <div class="hs"><div class="hs-n" data-count="4">0</div><div class="hs-l">Modules</div></div>
+    <div class="hs"><div class="hs-n">&lt;3s</div><div class="hs-l">Per Analysis</div></div>
+  </div>
+
+  <div style="max-width:1080px;margin:46px auto 0;text-align:left;animation:pe .6s .34s ease both">
+    <div style="font-family:var(--f-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--teal);margin-bottom:14px">⚙️ System Workflow</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;align-items:stretch">
+      <div style="background:var(--surface);border:1px solid var(--b1);border-radius:var(--r);padding:16px">
+        <div style="font-family:var(--f-display);font-size:14px;font-weight:600;color:var(--t1);margin-bottom:6px">📷 1. Input Image</div>
+        <div style="font-size:12px;color:var(--t3);line-height:1.55">Satellite or drone flood imagery is uploaded for automated analysis.</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--b1);border-radius:var(--r);padding:16px">
+        <div style="font-family:var(--f-display);font-size:14px;font-weight:600;color:var(--t1);margin-bottom:6px">🧠 2. DL Prediction</div>
+        <div style="font-size:12px;color:var(--t3);line-height:1.55">ResNet-50 classifies the scene as flood or non-flood with confidence scores.</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--b1);border-radius:var(--r);padding:16px">
+        <div style="font-family:var(--f-display);font-size:14px;font-weight:600;color:var(--t1);margin-bottom:6px">🔥 3. XAI Heatmaps</div>
+        <div style="font-size:12px;color:var(--t3);line-height:1.55">GradCAM and GradCAM++ highlight the image regions used by the model.</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--b1);border-radius:var(--r);padding:16px">
+        <div style="font-family:var(--f-display);font-size:14px;font-weight:600;color:var(--t1);margin-bottom:6px">📊 4. Impact Metrics</div>
+        <div style="font-size:12px;color:var(--t3);line-height:1.55">Flood output is linked with maps, roads, buildings, risk, and recovery indicators.</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--b1);border-radius:var(--r);padding:16px">
+        <div style="font-family:var(--f-display);font-size:14px;font-weight:600;color:var(--t1);margin-bottom:6px">📋 5. Report Support</div>
+        <div style="font-size:12px;color:var(--t3);line-height:1.55">The system exports field reports and supports infrastructure, recovery, and reporting workflows.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modules">
+    <a href="/static/damage.html" class="mc">
+      <span class="mc-icon">🛰️</span>
+      <div class="mc-name">Damage Assessment</div>
+      <div class="mc-desc">ResNet-50 binary flood classification · GradCAM/GradCAM++ XAI · OSM water masking · Impact metrics · PDF export</div>
+      <span class="mc-arr">→</span>
+    </a>
+    <a href="/static/infrastructure.html" class="mc">
+      <span class="mc-icon">🏗</span>
+      <div class="mc-name">Infrastructure Impact</div>
+      <div class="mc-desc">Roads · Hospitals · Bridges · Searchable satellite map · Layer toggles</div>
+      <span class="mc-arr">→</span>
+    </a>
+    <a href="/static/recovery.html" class="mc">
+      <span class="mc-icon">🔮</span>
+      <div class="mc-name">Recovery Planning</div>
+      <div class="mc-desc">Safe zone detection · Rescue staging areas · Risk zones · Recovery timelines</div>
+      <span class="mc-arr">→</span>
+    </a>
+    <a href="/static/reporting.html" class="mc">
+  <span class="mc-icon">📢</span>
+  <div class="mc-name">Reporting</div>
+  <div class="mc-desc">
+    Crowdsourced flood reports · Real-time updates · AI verification · Severity tracking · Map integration
+  </div>
+  <span class="mc-arr">→</span>
+</a>
+  </div>
+
+  <!-- FEATURE HIGHLIGHTS -->
+  <div style="max-width:960px;margin:48px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
+    <div style="background:var(--surface);border:1px solid var(--b1);border-radius:var(--r);padding:16px 18px">
+      <div style="font-size:20px;margin-bottom:8px">🗺️</div>
+      <div style="font-family:var(--f-display);font-size:13px;font-weight:600;color:var(--t1);margin-bottom:4px">Searchable Damage Map</div>
+      <div style="font-size:12px;color:var(--t3)">Geocoding search — fly to any location in India instantly</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--b1);border-radius:var(--r);padding:16px 18px">
+      <div style="font-size:20px;margin-bottom:8px">💧</div>
+      <div style="font-family:var(--f-display);font-size:13px;font-weight:600;color:var(--t1);margin-bottom:4px">River/Canal Masking</div>
+      <div style="font-size:12px;color:var(--t3)">OSM permanent water subtracted so rivers don't trigger false floods</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--b1);border-radius:var(--r);padding:16px 18px">
+      <div style="font-size:20px;margin-bottom:8px">🛡️</div>
+      <div style="font-family:var(--f-display);font-size:13px;font-weight:600;color:var(--t1);margin-bottom:4px">Safe Zone Detection</div>
+      <div style="font-size:12px;color:var(--t3)">Elevated, unflooded areas identified for rescue staging</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--b1);border-radius:var(--r);padding:16px 18px">
+      <div style="font-size:20px;margin-bottom:8px">📋</div>
+      <div style="font-family:var(--f-display);font-size:13px;font-weight:600;color:var(--t1);margin-bottom:4px">Exportable Briefings</div>
+      <div style="font-size:12px;color:var(--t3)">PDF reports + GeoJSON download for offline field use</div>
+    </div>
+  </div>
+
+  <div style="max-width:680px;margin:40px auto 0;background:var(--surface);border:1px solid var(--b1);border-radius:var(--r);padding:20px 26px;text-align:left">
+    <div style="font-family:var(--f-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);margin-bottom:12px">Research Team · VIT-AP University</div>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div style="flex:1;min-width:140px">
+        <div style="font-family:var(--f-display);font-weight:600;color:var(--t1);font-size:14px">Satyam Ponnada</div>
+        <div style="font-family:var(--f-mono);font-size:11px;color:var(--t3)">22BCE9025 · Lead</div>
+      </div>
+      <div style="flex:1;min-width:140px">
+        <div style="font-family:var(--f-display);font-weight:600;color:var(--t1);font-size:14px">Phani Alapati</div>
+        <div style="font-family:var(--f-mono);font-size:11px;color:var(--t3)">22BCE7293 · DL</div>
+      </div>
+      <div style="flex:1;min-width:140px">
+        <div style="font-family:var(--f-display);font-weight:600;color:var(--t1);font-size:14px">Mihir Datta</div>
+        <div style="font-family:var(--f-mono);font-size:11px;color:var(--t3)">22BCE7636 · XAI</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <strong>FloodXPlain v3.0</strong> · VIT-AP University · Final Year Project 2026
+  <span>ResNet-50 + GradCAM + GradCAM++ · Godavari Basin, Andhra Pradesh</span>
+</footer>
+
+<div id="toast"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>

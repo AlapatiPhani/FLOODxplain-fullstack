@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Damage Assessment — FloodXPlain</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+<canvas id="bg-canvas"></canvas>
+<div id="pt"></div>
+
+<nav>
+  <a href="/" class="logo"><div class="logo-mark">FXP</div>FloodXPlain</a>
+  <div class="vr"></div>
+      <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/static/damage.html" class="active"><span class="nav-ico">&#128308;</span>Damage</a>
+      <a href="/static/infrastructure.html"><span class="nav-ico">&#127959;</span>Infrastructure</a>
+      <a href="/static/recovery.html"><span class="nav-ico">&#128640;</span>Recovery</a>
+      <a href="/static/reporting.html"><span class="nav-ico">&#128226;</span>Reporting</a>
+  </div>
+  <div class="nav-end"><span class="pulse"></span><span class="nav-tag">MODULE 1 / 4</span></div>
+</nav>
+
+<main>
+  <!-- HEADER -->
+  <div class="ph pe">
+    <div class="eyebrow"><span class="eyebrow-dot"></span> AI FLOOD CLASSIFICATION + XAI</div>
+    <h1 class="page-title">Damage Assessment</h1>
+    <p class="page-sub">Upload an aerial image — the Kaggle-trained ResNet-50 model classifies flood vs non-flood scenes and explains its attention with GradCAM and GradCAM++ heatmaps.</p>
+  </div>
+
+  <!-- UPLOAD -->
+  <div class="card pe d1" id="uploadCard">
+    <div class="upload-area" onclick="document.getElementById('fi').click()" id="uploadArea">
+      <input type="file" id="fi" accept="image/*" onchange="doUpload(this)">
+      <span class="upload-icon">📡</span>
+      <div class="upload-title">Drop aerial image or click to browse</div>
+      <div class="upload-sub">JPG · PNG · WEBP — satellite or drone imagery</div>
+    </div>
+  </div>
+
+  <div id="resultArea"></div>
+  <div id="mapArea" style="display:none"></div>
+
+  <!-- ═══════════════════════ BATCH SURVEY PROCESSING ═══════════════════════ -->
+  <div class="card pe d2" style="margin-top:18px">
+    <div class="ct"><span class="ct-dot"></span> Survey Batch Processing</div>
+    <p style="font-size:12px;color:var(--t3);font-family:var(--f-mono);margin-bottom:16px">
+      Select multiple drone images — all processed in one request. Each result includes GradCAM &amp; GradCAM++ heatmaps and is plotted instantly on the map.
+    </p>
+
+    <div class="upload-area" id="batchDrop" onclick="document.getElementById('bfi').click()" style="margin-bottom:14px">
+      <input type="file" id="bfi" accept="image/*" multiple style="display:none" onchange="onBatchSelected(this)">
+      <span class="upload-icon">🛰️</span>
+      <div class="upload-title">Select multiple images</div>
+      <div class="upload-sub">Hold Ctrl / Cmd to select many · JPG · PNG · WEBP</div>
+    </div>
+
+    <div id="batchFileList" style="display:none;margin-bottom:14px">
+      <div style="font-family:var(--f-mono);font-size:11px;color:var(--t3);margin-bottom:8px;letter-spacing:.08em;text-transform:uppercase">
+        Selected <span id="batchCount" style="color:var(--teal)"></span>
+      </div>
+      <div id="batchChips" style="display:flex;flex-wrap:wrap;gap:6px;max-height:100px;overflow-y:auto;margin-bottom:12px"></div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-primary" id="batchRunBtn" onclick="runBatch()">🚀 Process Survey Batch</button>
+        <button class="btn btn-ghost" onclick="clearBatch()">✕ Clear</button>
+      </div>
+    </div>
+
+    <!-- PROGRESS BAR -->
+    <div id="batchProgress" style="display:none;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:11px;color:var(--t2);margin-bottom:6px">
+        <span id="batchStatusText">Processing…</span>
+        <span id="batchStatusCount"></span>
+      </div>
+      <div class="bw" style="height:6px;border-radius:99px">
+        <div id="batchProgressBar" class="bf b-teal" style="width:0%;height:6px;border-radius:99px;transition:width .4s ease"></div>
+      </div>
+    </div>
+
+    <!-- RESULTS TABLE -->
+    <div id="batchResultsArea" style="display:none">
+      <div id="batchSummaryStrip" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
+      <div class="ct"><span class="ct-dot"></span> Batch Results</div>
+      <table class="dt" id="batchTable">
+        <tr><th>#</th><th>Filename</th><th>Classification</th><th>Confidence</th><th>Severity</th><th>Flood %</th></tr>
+      </table>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-export" onclick="exportBatchGeoJSON()">📍 Batch GeoJSON</button>
+        <button class="btn btn-export" onclick="exportBatchCSV()">📊 CSV Summary</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BATCH HEATMAPS — auto-rendered per image after batch completes -->
+  <div id="batchHeatmapArea" style="display:none;margin-top:14px">
+    <div class="card pe">
+      <div class="ct"><span class="ct-dot"></span> Batch XAI Heatmaps — GradCAM &amp; GradCAM++ per Image</div>
+      <div style="font-size:12px;color:var(--t3);font-family:var(--f-mono);margin-bottom:14px">
+        Every processed image shows both heatmaps automatically below
+      </div>
+      <div id="batchAllHeatmaps"></div>
+    </div>
+  </div>
+
+  <!-- BATCH MAP -->
+  <div id="batchMapArea" style="display:none;margin-top:14px">
+    <div class="toggle-strip pe">
+      <span class="ts-label">BATCH MAP</span>
+      <button class="tb on" id="btnBatchFlood" onclick="toggleBatchLayer('flood')"><span class="tb-dot" style="background:#ff2d55"></span> Flooded</button>
+      <button class="tb on" id="btnBatchSafe" onclick="toggleBatchLayer('safe')"><span class="tb-dot" style="background:#00e676"></span> Safe</button>
+    </div>
+    <div id="batchMap" style="height:420px;border-radius:var(--r);overflow:hidden;border:1px solid var(--b1)"></div>
+    <div class="fm-legend" style="margin-top:8px">
+      <span class="fml"><span class="fml-color" style="background:rgba(255,45,85,0.4)"></span>Flooded</span>
+      <span class="fml"><span class="fml-color" style="background:rgba(0,230,118,0.4)"></span>Non-Flooded</span>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <strong>FloodXPlain</strong> · Module 1: Damage Assessment · ResNet-50 + GradCAM + GradCAM++
+  <span>VIT-AP 2026</span>
+</footer>
+<div id="toast"></div>
+
+<script src="/static/app.js"></script>
+<script>
+let map=null, overlayL=null, markerL=null, waterL=null;
+let lastResult=null;
+let gradcamVisible=true, gradcamppVisible=true;
+
+async function doUpload(inp) {
+  const file=inp.files[0]; if(!file)return;
+  const ra=document.getElementById('resultArea');
+  ra.innerHTML=`<div class="card pe">${loaderHTML('Running ResNet-50 + GradCAM/GradCAM++ analysis...')}</div>`;
+  try {
+    const r=await runPredict(file);
+    lastResult=r;
+    renderResult(r,file);
+  } catch(e) {
+    ra.innerHTML=`<div class="card rc flood pe">
+      <div style="color:var(--red);font-family:var(--f-display);font-size:16px">⚠️ Analysis Error</div>
+      <div style="color:var(--t2);margin-top:8px">${e.message}</div>
+    </div>`;
+  }
+}
+
+function saveDamageContext(result) {
+  const payload = {
+    label: result.label,
+    severity: result.severity,
+    confidence: result.confidence,
+    flood_prob: result.flood_prob,
+    safe_prob: result.safe_prob,
+    metrics: result.metrics,
+    lat: 16.5,
+    lng: 81.5,
+    time: new Date().toLocaleString('en-IN', { dateStyle:'medium', timeStyle:'short' })
+  };
+  localStorage.setItem('fxp_latest_damage', JSON.stringify(payload));
+  fetch('/latest_damage', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).catch(() => {});
+}
+
+
+
+function renderResult(r,file) {
+  const isF=r.label==='Flooded';
+  const cls=isF?'flood':'safe';
+  const icon=isF?'🌊':'✅';
+  const metrics=calcFloodMetrics(r.confidence, r.severity);
+  lastResult={...r, metrics};
+  saveDamageContext(lastResult);
+
+  document.getElementById('resultArea').innerHTML=`
+
+  <!-- RESULT CARD -->
+  <div class="rc ${cls} pe" style="margin-bottom:14px">
+    <div style="display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap">
+      <div style="font-size:52px;line-height:1">${icon}</div>
+      <div style="flex:1;min-width:160px">
+        <div class="rb ${cls}">${r.label.toUpperCase()}</div>
+        <div class="sev-${r.severity}" style="margin-top:5px">● ${r.severity} RISK ZONE</div>
+        <div style="font-family:var(--f-mono);font-size:11px;color:var(--t3);margin-top:6px">ResNet-50 · Binary flood classifier · OSM-masked</div>
+      </div>
+      <div style="text-align:right">
+        <div class="conf-n">${r.confidence}<span style="font-size:22px;color:var(--t2)">%</span></div>
+        <div style="font-family:var(--f-mono);font-size:10px;color:var(--t3);margin-top:4px;letter-spacing:.06em">CONFIDENCE</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px">
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--t2);margin-bottom:4px">
+          <span>🌊 Flood probability</span><span style="color:var(--red)">${r.flood_prob}%</span>
+        </div>
+        <div class="bw"><div class="bf b-red" style="width:${r.flood_prob}%"></div></div>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--t2);margin-bottom:4px">
+          <span>✅ Safe probability</span><span style="color:var(--green)">${r.safe_prob}%</span>
+        </div>
+        <div class="bw"><div class="bf b-green" style="width:${r.safe_prob}%"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AUTOMATED IMPACT METRICS -->
+  <div class="card pe d1" style="margin-bottom:14px">
+    <div class="ct"><span class="ct-dot"></span> Automated Impact Metrics</div>
+    <div style="font-size:12px;color:var(--t3);font-family:var(--f-mono);margin-bottom:14px">
+      Calculated from flood mask area + OSM building/road data crossref
+    </div>
+    <div class="sg" style="margin-bottom:0">
+      <div class="sc"><div class="sc-icon">🌾</div>
+        <div class="sc-num" style="color:var(--amber)">${fmt(metrics.crop_ha)}</div><div class="sc-label">Crop Hectares</div></div>
+      <div class="sc"><div class="sc-icon">🛣️</div>
+        <div class="sc-num">${metrics.road_km}</div><div class="sc-label">Roads Affected (km)</div></div>
+    </div>
+  </div>
+
+  <!-- XAI HEATMAPS WITH TOGGLE -->
+  <div class="card pe d2" style="margin-bottom:14px">
+    <div class="ct"><span class="ct-dot"></span> XAI Explainability Heatmaps</div>
+
+    <!-- GRADCAM TOGGLE -->
+    <div class="toggle-strip">
+      <span class="ts-label">DISPLAY</span>
+      <button class="tb on" id="btnGC" onclick="toggleHeatmap('gc')">
+        <span class="tb-dot" style="background:#ff6b35"></span> GradCAM
+      </button>
+      <button class="tb on" id="btnGCPP" onclick="toggleHeatmap('gcpp')">
+        <span class="tb-dot" style="background:#ffcc00"></span> GradCAM++
+      </button>
+      <span class="ts-sep"></span>
+      <div class="ts-legend">
+        <span class="tl-item"><span class="tl-dot" style="background:#ff2d55"></span>High attention</span>
+        <span class="tl-item"><span class="tl-dot" style="background:#ffcc00"></span>Medium</span>
+        <span class="tl-item"><span class="tl-dot" style="background:#00b4ff"></span>Ignored</span>
+      </div>
+    </div>
+
+    <div class="hg" id="heatmapGrid">
+      <div class="hb" id="hbGC">
+        <img src="data:image/png;base64,${r.gradcam}" alt="GradCAM">
+        <div class="hl">🔴 GRADCAM — Dominant flood region focus</div>
+      </div>
+      <div class="hb" id="hbGCPP">
+        <img src="data:image/png;base64,${r.gradcampp}" alt="GradCAM++">
+        <div class="hl">🟡 GRADCAM++ — Multi-region faithful attention</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--t3);font-family:var(--f-mono);margin-top:10px">
+      ℹ️ GradCAM++ shows higher faithfulness for aerial flood scenes with multiple water regions
+    </div>
+  </div>
+
+  <!-- ANALYSIS DETAIL -->
+  <div class="card pe d3" style="margin-bottom:14px">
+    <div class="ct"><span class="ct-dot"></span> Analysis Summary</div>
+    <table class="dt">
+      <tr><td>AI Model</td><td style="color:var(--t1);font-family:var(--f-mono)">ResNet-50 · 50-layer CNN · ImageNet pretrained</td></tr>
+      <tr><td>Dataset</td><td style="color:var(--t1)">Kaggle Flood Classification Dataset</td></tr>
+      <tr><td>Training Setup</td><td><span class="tag t-teal">80/20 train-validation split</span></td></tr>
+      <tr><td>Optimizer</td><td style="color:var(--t1)">Adam · lr=0.0001 · 3 epochs</td></tr>
+      <tr><td>Classes</td><td style="color:var(--t1)">Flood Images / Non Flood Images</td></tr>
+      <tr><td>Flood Classification</td><td style="color:var(--t1)">${r.label}</td></tr>
+      <tr><td>Confidence Score</td><td style="color:var(--teal);font-family:var(--f-mono)">${r.confidence}%</td></tr>
+      <tr><td>Risk Severity</td><td><span class="tag ${r.severity==='HIGH'?'t-red':r.severity==='MEDIUM'?'t-amber':'t-green'}">${r.severity}</span></td></tr>
+      <tr><td>XAI Methods</td><td style="color:var(--t1)">GradCAM + GradCAM++ (pytorch-grad-cam)</td></tr>
+      <tr><td>Water Masking</td><td><span class="tag t-teal">OSM STATIC MASK APPLIED</span></td></tr>
+    </table>
+  </div>
+
+  <!-- EXPORT BAR -->
+  <div class="export-bar pe d4">
+    <span class="eb-label">EXPORT</span>
+    <button class="btn btn-export" onclick="exportReport(lastResult)">📋 PDF Report</button>
+    <button class="btn btn-export" onclick="exportGeoJSON(lastResult)">📍 GeoJSON Download</button>
+    <button class="btn btn-ghost" onclick="toast('Link copied to clipboard!'); navigator.clipboard.writeText(window.location.href)">🔗 Share Link</button>
+  </div>`;
+
+  // MAP
+  const ma=document.getElementById('mapArea');
+  ma.style.display='block';
+  if(map){ map.remove(); map=null; overlayL=null; markerL=null; waterL=null; }
+  ma.innerHTML=`
+  <div style="margin-top:14px">
+    <div class="toggle-strip pe">
+      <span class="ts-label">MAP LAYERS</span>
+      <button class="tb on" id="btnOverlay" onclick="toggleOverlay()">
+        <span class="tb-dot" style="background:var(--teal)"></span> Image Overlay
+      </button>
+      <button class="tb on" id="btnWater" onclick="toggleWater()">
+        <span class="tb-dot" style="background:#00b4ff"></span> Permanent Water Mask
+      </button>
+    </div>
+    <div id="map"></div>
+    <div class="fm-legend">
+      <span>Map layers:</span>
+      <span class="fml"><span class="fml-color" style="background:rgba(255,45,85,0.4)"></span>Flood zone (AI)</span>
+      <span class="fml"><span class="fml-color" style="background:rgba(0,180,255,0.4)"></span>Permanent water (OSM — excluded)</span>
+      <span class="fml"><span class="fml-color" style="background:rgba(0,230,118,0.4)"></span>Safe zones</span>
+    </div>
+  </div>`;
+
+  map=initMap('map');
+  setTimeout(()=>map.invalidateSize(), 80);
+
+  const imgUrl=URL.createObjectURL(file);
+  overlayL=L.imageOverlay(imgUrl,[[15.8,80.8],[17.2,82.4]],{opacity:0.62}).addTo(map);
+
+  const color=isF?'#ff2d55':'#00e676';
+  markerL=L.circleMarker([16.5,81.5],{radius:18,color,fillColor:color,fillOpacity:0.22,weight:2})
+    .bindPopup(`<b style="color:${color}">${r.label}</b><br>Confidence: <b>${r.confidence}%</b><br>Risk: <b>${r.severity}</b>`)
+    .addTo(map).openPopup();
+  map.fitBounds([[15.8,80.8],[17.2,82.4]], {padding:[18,18]});
+  setTimeout(()=>map.invalidateSize(), 220);
+
+  // Load OSM permanent water
+  toast('Loading permanent water mask from OSM...');
+  loadPermanentWater(map).then(l => {
+    waterL=l;
+    if(l) toast('✅ OSM water mask loaded — rivers & canals excluded from flood analysis');
+    else toast('⚠️ OSM water layer unavailable (network)');
+  });
+}
+
+function toggleHeatmap(type) {
+  if(type==='gc') {
+    gradcamVisible=!gradcamVisible;
+    document.getElementById('hbGC').style.display=gradcamVisible?'block':'none';
+    document.getElementById('btnGC').classList.toggle('on',gradcamVisible);
+  } else {
+    gradcamppVisible=!gradcamppVisible;
+    document.getElementById('hbGCPP').style.display=gradcamppVisible?'block':'none';
+    document.getElementById('btnGCPP').classList.toggle('on',gradcamppVisible);
+  }
+}
+
+function toggleOverlay() {
+  if(!overlayL||!map) return;
+  const btn=document.getElementById('btnOverlay');
+  if(map.hasLayer(overlayL)){map.removeLayer(overlayL);btn.classList.remove('on')}
+  else{map.addLayer(overlayL);btn.classList.add('on')}
+}
+
+function toggleWater() {
+  if(!waterL||!map) return;
+  const btn=document.getElementById('btnWater');
+  if(map.hasLayer(waterL)){map.removeLayer(waterL);btn.classList.remove('on')}
+  else{map.addLayer(waterL);btn.classList.add('on')}
+}
+
+/* ═══════════════════════════════════════
+   BATCH PROCESSING
+═══════════════════════════════════════ */
+let batchFiles=[], batchResults=[], batchMap=null, batchFloodLayer=null, batchSafeLayer=null;
+let bGCVisible=true, bGCPPVisible=true;
+
+function onBatchSelected(inp) {
+  batchFiles = Array.from(inp.files);
+  if (!batchFiles.length) return;
+  document.getElementById('batchCount').textContent = `(${batchFiles.length} images)`;
+  document.getElementById('batchChips').innerHTML = batchFiles.map(f =>
+    `<span style="background:var(--surface2,#0d1f2d);border:1px solid var(--b1);border-radius:6px;
+      padding:3px 9px;font-family:var(--f-mono);font-size:10px;color:var(--t2);
+      white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;display:inline-block"
+      title="${f.name}">📷 ${f.name}</span>`
+  ).join('');
+  document.getElementById('batchFileList').style.display = 'block';
+  document.getElementById('batchResultsArea').style.display = 'none';
+  document.getElementById('batchHeatmapArea').style.display = 'none';
+  document.getElementById('batchMapArea').style.display = 'none';
+}
+
+function clearBatch() {
+  batchFiles=[]; batchResults=[];
+  document.getElementById('bfi').value='';
+  ['batchFileList','batchProgress','batchResultsArea','batchHeatmapArea','batchMapArea']
+    .forEach(id => document.getElementById(id).style.display='none');
+  if(batchMap){batchMap.remove();batchMap=null;}
+}
+
+async function runBatch() {
+  if (!batchFiles.length) return;
+  const btn = document.getElementById('batchRunBtn');
+  btn.disabled=true; btn.textContent='⏳ Processing…';
+  document.getElementById('batchProgress').style.display='block';
+  document.getElementById('batchStatusText').textContent='Sending batch to server…';
+  document.getElementById('batchStatusCount').textContent=`0 / ${batchFiles.length}`;
+  document.getElementById('batchProgressBar').style.width='5%';
+
+  try {
+    const fd = new FormData();
+    batchFiles.forEach(f => fd.append('files', f));
+
+    document.getElementById('batchStatusText').textContent='Running ResNet-50 + GradCAM/GradCAM++ on all images…';
+    const res = await fetch('/predict_batch', {method:'POST', body:fd});
+    if (!res.ok) throw new Error(`Server error ${res.status}`);
+
+    document.getElementById('batchProgressBar').style.width='85%';
+    document.getElementById('batchStatusText').textContent='Aggregating results…';
+    batchResults = await res.json();
+
+    document.getElementById('batchProgressBar').style.width='100%';
+    document.getElementById('batchStatusText').textContent=`✅ Done — ${batchResults.length} images processed`;
+    document.getElementById('batchStatusCount').textContent=`${batchResults.length} / ${batchResults.length}`;
+
+    renderBatchResults(batchResults);
+  } catch(e) {
+    document.getElementById('batchStatusText').textContent=`⚠️ Error: ${e.message}`;
+    toast(`Batch failed: ${e.message}`);
+  } finally {
+    btn.disabled=false; btn.textContent='🚀 Process Survey Batch';
+  }
+}
+
+function renderBatchResults(results) {
+  const floodCount = results.filter(r=>r.label==='Flooded').length;
+  const safeCount  = results.filter(r=>r.label==='Non-Flooded').length;
+  const errCount   = results.filter(r=>r.error).length;
+
+  // Summary strip
+  document.getElementById('batchSummaryStrip').innerHTML=`
+    <span class="tag t-teal">${results.length} images</span>
+    <span class="tag t-red">🌊 ${floodCount} Flooded</span>
+    <span class="tag t-green">✅ ${safeCount} Safe</span>
+    ${errCount?`<span class="tag t-amber">⚠️ ${errCount} Errors</span>`:''}`;
+
+  // Table
+  document.getElementById('batchTable').innerHTML=`
+    <tr><th>#</th><th>Filename</th><th>Classification</th><th>Confidence</th><th>Severity</th><th>Flood %</th></tr>`+
+    results.map(r => {
+      if(r.error) return `<tr><td>${r.index+1}</td><td style="font-family:var(--f-mono);font-size:11px">${r.filename||'—'}</td><td colspan="4" style="color:var(--red)">⚠️ ${r.error}</td></tr>`;
+      const cls=r.label==='Flooded'?'t-red':'t-green';
+      const sc=r.severity==='HIGH'?'t-red':r.severity==='MEDIUM'?'t-amber':'t-green';
+      return `<tr>
+        <td style="color:var(--t3)">${r.index+1}</td>
+        <td style="font-family:var(--f-mono);font-size:11px;color:var(--t2);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.filename}">${r.filename||'—'}</td>
+        <td><span class="tag ${cls}">${r.label}</span></td>
+        <td style="font-family:var(--f-mono);color:var(--teal)">${r.confidence}%</td>
+        <td><span class="tag ${sc}">${r.severity}</span></td>
+        <td style="font-family:var(--f-mono);color:var(--red)">${r.flood_prob}%</td>
+      </tr>`;
+    }).join('');
+
+  document.getElementById('batchResultsArea').style.display='block';
+
+  // Auto-render all heatmaps below the table
+  const heatArea = document.getElementById('batchHeatmapArea');
+  heatArea.style.display = 'block';
+  const heatContainer = document.getElementById('batchAllHeatmaps');
+  heatContainer.innerHTML = results.filter(r => !r.error && r.gradcam && r.gradcampp).map(r => {
+    const isF = r.label === 'Flooded';
+    const color = isF ? '#ff2d55' : '#00e676';
+    const icon = isF ? '🌊' : '✅';
+    return `
+      <div style="background:var(--surface,#0a1929);border:1px solid var(--b1,#1e3a5f);border-radius:var(--r,12px);padding:16px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+          <span style="font-size:22px">${icon}</span>
+          <div>
+            <div style="font-family:var(--f-display,sans-serif);font-size:13px;font-weight:600;color:${color}">${r.label} — ${r.severity} RISK</div>
+            <div style="font-family:var(--f-mono,monospace);font-size:11px;color:var(--t3,#666)">${r.filename||'Image '+(r.index+1)} · Confidence: ${r.confidence}% · Flood: ${r.flood_prob}%</div>
+          </div>
+        </div>
+        <div class="hg">
+          <div class="hb">
+            <img src="data:image/png;base64,${r.gradcam}" alt="GradCAM" style="width:100%;border-radius:8px">
+            <div class="hl">🔴 GRADCAM — Image ${r.index+1}</div>
+          </div>
+          <div class="hb">
+            <img src="data:image/png;base64,${r.gradcampp}" alt="GradCAM++" style="width:100%;border-radius:8px">
+            <div class="hl">🟡 GRADCAM++ — Image ${r.index+1}</div>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  // MAP
+  document.getElementById('batchMapArea').style.display='block';
+  if(batchMap){batchMap.remove();batchMap=null;}
+  batchMap=initMap('batchMap',16.5,81.5,9);
+  setTimeout(()=>batchMap.invalidateSize(),80);
+  batchFloodLayer=L.layerGroup();
+  batchSafeLayer=L.layerGroup();
+
+  const bounds=[];
+  results.forEach(r=>{
+    if(r.error||!r.lat||!r.lng) return;
+    const isF=r.label==='Flooded';
+    const color=isF?'#ff2d55':'#00e676';
+    const layer=isF?batchFloodLayer:batchSafeLayer;
+    const ll=[r.lat,r.lng];
+    bounds.push(ll);
+    const icon=L.divIcon({className:'',
+      html:`<div style="width:34px;height:34px;border-radius:50%;background:${color}22;border:2px solid ${color};
+        display:flex;align-items:center;justify-content:center;font-size:15px;
+        box-shadow:0 0 12px ${color}55">${isF?'🌊':'✅'}</div>`,
+      iconSize:[34,34],iconAnchor:[17,17]});
+    L.marker(ll,{icon})
+      .bindPopup(`<b style="color:${color}">${r.label}</b><br>
+        <span style="font-family:monospace;font-size:11px">${r.filename||''}</span><br>
+        Confidence: <b>${r.confidence}%</b><br>Risk: <b>${r.severity}</b><br>
+        Flood prob: <b>${r.flood_prob}%</b><br>
+        <span style="font-size:11px;color:#888">Click row in table to view heatmaps</span>`)
+      .addTo(layer);
+  });
+  batchFloodLayer.addTo(batchMap);
+  batchSafeLayer.addTo(batchMap);
+  if(bounds.length>1) batchMap.fitBounds(bounds,{padding:[30,30]});
+  else if(bounds.length===1) batchMap.setView(bounds[0],11);
+  setTimeout(()=>batchMap.invalidateSize(),220);
+
+  toast(`✅ Batch complete — ${results.length} markers plotted · Click any row to view its heatmaps`);
+}
+
+function toggleBatchLayer(type) {
+  if(!batchMap) return;
+  if(type==='flood'){
+    const btn=document.getElementById('btnBatchFlood');
+    if(batchMap.hasLayer(batchFloodLayer)){batchMap.removeLayer(batchFloodLayer);btn.classList.remove('on')}
+    else{batchMap.addLayer(batchFloodLayer);btn.classList.add('on')}
+  } else {
+    const btn=document.getElementById('btnBatchSafe');
+    if(batchMap.hasLayer(batchSafeLayer)){batchMap.removeLayer(batchSafeLayer);btn.classList.remove('on')}
+    else{batchMap.addLayer(batchSafeLayer);btn.classList.add('on')}
+  }
+}
+
+function exportBatchGeoJSON() {
+  if(!batchResults.length) return;
+  const geo={type:'FeatureCollection',
+    properties:{generated:new Date().toISOString(),platform:'FloodXPlain v3 — Batch'},
+    features:batchResults.filter(r=>!r.error).map(r=>({
+      type:'Feature',
+      geometry:{type:'Point',coordinates:[r.lng,r.lat]},
+      properties:{index:r.index,filename:r.filename,label:r.label,
+        confidence:r.confidence,severity:r.severity,flood_prob:r.flood_prob,safe_prob:r.safe_prob}
+    }))};
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(geo,null,2)],{type:'application/json'}));
+  a.download='batch_flood_analysis.geojson'; a.click();
+}
+
+function exportBatchCSV() {
+  if(!batchResults.length) return;
+  const rows=batchResults.map(r=>
+    `${r.index},${JSON.stringify(r.filename||'')},${r.label||'Error'},${r.confidence||0},${r.severity||''},${r.flood_prob||0},${r.safe_prob||0},${r.lat},${r.lng}`
+  );
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(
+    ['index,filename,label,confidence,severity,flood_prob,safe_prob,lat,lng\n'+rows.join('\n')],
+    {type:'text/csv'}));
+  a.download='batch_flood_analysis.csv'; a.click();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Reporting — FloodXPlain</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+<canvas id="bg-canvas"></canvas>
+<div id="pt"></div>
+
+<nav>
+  <a href="/" class="logo"><div class="logo-mark">FXP</div>FloodXPlain</a>
+  <div class="vr"></div>
+  <div class="nav-links">
+    <a href="/">Home</a>
+    <a href="/static/damage.html"><span class="nav-ico">&#128308;</span>Damage</a>
+    <a href="/static/infrastructure.html"><span class="nav-ico">&#127959;</span>Infrastructure</a>
+    <a href="/static/recovery.html"><span class="nav-ico">&#128640;</span>Recovery</a>
+    <a href="/static/reporting.html" class="active"><span class="nav-ico">&#128226;</span>Reporting</a>
+  </div>
+  <div class="nav-end"><span class="pulse"></span><span class="nav-tag">MODULE 4 / 4</span></div>
+</nav>
+
+<main>
+  <div class="ph pe">
+    <div class="eyebrow"><span class="eyebrow-dot"></span> CROWDSOURCED FIELD REPORTING</div>
+    <h1 class="page-title">Reporting</h1>
+    <p class="page-sub">Submit and track crowdsourced flood reports with AI-powered verification, severity tracking, and live map integration.</p>
+  </div>
+
+  <!-- CONNECTED DAMAGE CONTEXT BANNER -->
+  <div id="damageContext" class="pe d1"></div>
+
+  <!-- REPORT SUBMISSION FORM -->
+  <div class="card pe d2" style="margin-bottom:14px">
+    <div class="ct"><span class="ct-dot"></span> Submit a Field Report</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px" id="formGrid">
+
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:11px;color:var(--t3);font-family:var(--f-mono);letter-spacing:.08em">LOCATION NAME</label>
+        <input id="rLocation" placeholder="e.g. Rajahmundry, Konaseema..." style="background:var(--surface);border:1px solid var(--b1);border-radius:8px;padding:10px 14px;color:var(--t1);font-size:13px;outline:none;font-family:var(--f-sans)">
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:11px;color:var(--t3);font-family:var(--f-mono);letter-spacing:.08em">SEVERITY</label>
+        <select id="rSeverity" style="background:var(--surface);border:1px solid var(--b1);border-radius:8px;padding:10px 14px;color:var(--t1);font-size:13px;outline:none;font-family:var(--f-sans)">
+          <option value="Low">Low — Minor water logging</option>
+          <option value="Moderate" selected>Moderate — Road flooding</option>
+          <option value="High">High — Evacuations needed</option>
+          <option value="Critical">Critical — Rescue required</option>
+        </select>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:11px;color:var(--t3);font-family:var(--f-mono);letter-spacing:.08em">YOUR NAME (optional)</label>
+        <input id="rName" placeholder="Anonymous" style="background:var(--surface);border:1px solid var(--b1);border-radius:8px;padding:10px 14px;color:var(--t1);font-size:13px;outline:none;font-family:var(--f-sans)">
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:11px;color:var(--t3);font-family:var(--f-mono);letter-spacing:.08em">ASSIGN TO</label>
+        <select id="rAssigned" style="background:var(--surface);border:1px solid var(--b1);border-radius:8px;padding:10px 14px;color:var(--t1);font-size:13px;outline:none;font-family:var(--f-sans)">
+          <option value="Control Room">Control Room</option>
+          <option value="NDRF Team">NDRF Team</option>
+          <option value="SDRF Team">SDRF Team</option>
+          <option value="District Collector">District Collector</option>
+          <option value="Municipal Corporation">Municipal Corporation</option>
+        </select>
+      </div>
+
+      <div style="grid-column:1/-1;display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:11px;color:var(--t3);font-family:var(--f-mono);letter-spacing:.08em">DESCRIPTION</label>
+        <textarea id="rDescription" rows="3" placeholder="Describe the flood situation — water level, people stranded, roads blocked, crops damaged..." style="background:var(--surface);border:1px solid var(--b1);border-radius:8px;padding:10px 14px;color:var(--t1);font-size:13px;outline:none;resize:vertical;font-family:var(--f-sans)"></textarea>
+      </div>
+
+      <!-- MAP PICKER -->
+      <div style="grid-column:1/-1;display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:11px;color:var(--t3);font-family:var(--f-mono);letter-spacing:.08em">PIN LOCATION ON MAP <span style="color:var(--teal)">(click map to set)</span></label>
+        <div id="pickMap" style="height:220px;border-radius:8px;border:1px solid var(--b1);overflow:hidden"></div>
+        <div style="display:flex;gap:10px;margin-top:4px">
+          <span style="font-size:12px;color:var(--t3);font-family:var(--f-mono)">LAT: <span id="pickedLat" style="color:var(--teal)">—</span></span>
+          <span style="font-size:12px;color:var(--t3);font-family:var(--f-mono)">LNG: <span id="pickedLng" style="color:var(--teal)">—</span></span>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;display:flex;gap:10px;align-items:center">
+      <button class="btn btn-primary" onclick="submitReport()">📤 Submit Report</button>
+      <button class="btn btn-ghost" onclick="clearForm()">✕ Clear</button>
+      <span id="submitStatus" style="font-size:12px;color:var(--t3);font-family:var(--f-mono)"></span>
+    </div>
+  </div>
+
+  <!-- STATS ROW -->
+  <div class="sg pe d3" id="reportStats">
+    <div class="sc"><div class="sc-icon">📋</div><div class="sc-num" id="totalReports" style="color:var(--teal)">—</div><div class="sc-label">Total Reports</div></div>
+    <div class="sc"><div class="sc-icon">✅</div><div class="sc-num" id="verifiedReports" style="color:var(--green)">—</div><div class="sc-label">AI Verified</div></div>
+    <div class="sc"><div class="sc-icon">🚨</div><div class="sc-num" id="criticalReports" style="color:var(--red)">—</div><div class="sc-label">Critical Reports</div></div>
+    <div class="sc"><div class="sc-icon">📍</div><div class="sc-num" id="mappedReports" style="color:var(--amber)">—</div><div class="sc-label">Mapped Reports</div></div>
+  </div>
+
+  <!-- LAYER CONTROLS + REPORTS MAP -->
+  <div class="toggle-strip pe d4">
+    <span class="ts-label">LAYERS</span>
+    <button class="tb on" id="btnVerified" onclick="toggleReportLayer('verified')"><span class="tb-dot" style="background:#00e676"></span> Verified</button>
+    <button class="tb on" id="btnUnverified" onclick="toggleReportLayer('unverified')"><span class="tb-dot" style="background:#ffcc00"></span> Unverified</button>
+    <button class="tb on" id="btnAIDmg" onclick="toggleReportLayer('aidmg')"><span class="tb-dot" style="background:var(--teal)"></span> AI Damage Pin</button>
+  </div>
+  <div id="reportsMap" class="pe d4"></div>
+
+  <!-- REPORTS TABLE -->
+  <div class="card pe d5" style="margin-top:14px">
+    <div class="ct"><span class="ct-dot"></span> Recent Field Reports
+      <button class="btn btn-ghost" style="margin-left:auto;font-size:11px;padding:4px 12px" onclick="loadReports()">🔄 Refresh</button>
+    </div>
+    <div id="reportsTableWrap">
+      <table class="dt" id="reportsTable">
+        <tr><th>Location</th><th>Severity</th><th>Description</th><th>AI Verified</th><th>Confidence</th><th>Assigned To</th></tr>
+      </table>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <strong>FloodXPlain</strong> · Module 4: Reporting · Crowdsourced + AI Verified
+  <span>VIT-AP 2026</span>
+</footer>
+<div id="toast"></div>
+
+<script src="/static/app.js"></script>
+<script>
+let pickMap, pickMarker;
+let reportsMap;
+let pickedLat = null, pickedLng = null;
+const reportLayers = { verified: [], unverified: [], aidmg: [] };
+const reportVisible = { verified: true, unverified: true, aidmg: true };
+
+// ── Get damage context ─────────────────────────────────────────────────
+async function getDamageContext() {
+  let raw = localStorage.getItem('fxp_latest_damage');
+  if (!raw) {
+    try {
+      const res = await fetch('/latest_damage');
+      const data = await res.json();
+      if (data && Object.keys(data).length) {
+        raw = JSON.stringify(data);
+        localStorage.setItem('fxp_latest_damage', raw);
+      }
+    } catch (e) {}
+  }
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch (e) { return null; }
+}
+
+// ── Render damage context banner ──────────────────────────────────────
+async function renderDamageContext() {
+  const host = document.getElementById('damageContext');
+  const d = await getDamageContext();
+
+  if (!d || !Object.keys(d).length) {
+    host.innerHTML = `
+      <div class="card" style="margin-bottom:14px;border:1px solid var(--b1);padding:18px 22px;border-radius:var(--r)">
+        <div class="ct"><span class="ct-dot"></span> Connected Damage Context</div>
+        <p style="color:var(--t2);margin-bottom:12px">No damage analysis connected yet. Run the Damage module first.</p>
+        <a class="btn btn-ghost" href="/static/damage.html">→ Open Damage Assessment</a>
+      </div>`;
+    return null;
+  }
+
+  const isFlood = d.label === 'Flooded';
+  const badge = isFlood ? 't-red' : 't-green';
+
+  host.innerHTML = `
+    <div class="card" style="margin-bottom:14px;border:1px solid var(--b1);padding:16px 22px;border-radius:var(--r)">
+      <div class="ct"><span class="ct-dot"></span> Connected Damage Context
+        <span style="margin-left:auto;font-size:10px;color:var(--t3);font-family:var(--f-mono)">${d.time || 'Latest session'}</span>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+        <span class="tag ${badge}">${d.label}</span>
+        <span class="tag t-teal">${d.severity} risk</span>
+        <span class="tag t-amber">${d.confidence}% confidence</span>
+        <span class="tag t-teal">Flood prob: ${d.flood_prob}%</span>
+      </div>
+      <p style="color:var(--t2);font-size:13px;margin-top:10px;margin-bottom:0">
+        ${isFlood
+          ? '⚠️ Flood detected by AI. Reports in the affected area will be cross-referenced with this classification result.'
+          : '✅ No flood detected by AI. Field reports are still tracked for ground-truth verification.'}
+      </p>
+    </div>`;
+  return d;
+}
+
+// ── Init map picker ───────────────────────────────────────────────────
+function initPickMap() {
+  pickMap = L.map('pickMap', { zoomControl: true }).setView([16.5, 81.5], 7);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { attribution: 'Tiles © Esri', maxZoom: 19 }).addTo(pickMap);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png',
+    { attribution: '', maxZoom: 19 }).addTo(pickMap);
+
+  pickMap.on('click', e => {
+    pickedLat = e.latlng.lat.toFixed(6);
+    pickedLng = e.latlng.lng.toFixed(6);
+    document.getElementById('pickedLat').textContent = pickedLat;
+    document.getElementById('pickedLng').textContent = pickedLng;
+    if (pickMarker) pickMap.removeLayer(pickMarker);
+    pickMarker = L.circleMarker([pickedLat, pickedLng], {
+      radius: 9, color: '#00c8b4', fillColor: '#00c8b4', fillOpacity: 0.5, weight: 2
+    }).addTo(pickMap);
+    toast('📍 Location pinned: ' + pickedLat + ', ' + pickedLng);
+  });
+
+  setTimeout(() => pickMap.invalidateSize(), 120);
+}
+
+// ── Init reports map ──────────────────────────────────────────────────
+async function initReportsMap() {
+  reportsMap = initMap('reportsMap', 16.5, 81.5, 8);
+  setTimeout(() => reportsMap.invalidateSize(), 80);
+
+  const dmg = await getDamageContext();
+  if (dmg) {
+    const lat = Number(dmg.lat || 16.5);
+    const lng = Number(dmg.lng || 81.5);
+    const isFlood = dmg.label === 'Flooded';
+    const color = isFlood ? '#ff2d55' : '#00e676';
+    const c = L.circleMarker([lat, lng], {
+      radius: 14, color, fillColor: color, fillOpacity: 0.3, weight: 2
+    }).bindPopup(`<b style="color:${color}">🤖 AI Damage Pin</b><br>${dmg.label} — ${dmg.severity}<br>Confidence: ${dmg.confidence}%`).addTo(reportsMap);
+    reportLayers.aidmg.push(c);
+  }
+}
+
+// ── Submit report ─────────────────────────────────────────────────────
+async function submitReport() {
+  const location = document.getElementById('rLocation').value.trim();
+  const severity = document.getElementById('rSeverity').value;
+  const description = document.getElementById('rDescription').value.trim();
+  const name = document.getElementById('rName').value.trim();
+  const assigned_to = document.getElementById('rAssigned').value;
+  const status = document.getElementById('submitStatus');
+
+  if (!location) { toast('⚠️ Please enter a location'); return; }
+  if (!description) { toast('⚠️ Please enter a description'); return; }
+
+  status.textContent = 'Submitting...';
+  status.style.color = 'var(--t3)';
+
+  try {
+    const payload = {
+      location, severity, description, name, assigned_to,
+      lat: pickedLat ? parseFloat(pickedLat) : null,
+      lng: pickedLng ? parseFloat(pickedLng) : null
+    };
+
+    const r = await fetch('/submit_report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const result = await r.json();
+
+    if (result.verified) {
+      status.textContent = `✅ Verified (${result.confidence}% confidence)`;
+      status.style.color = 'var(--green)';
+      toast(`✅ Report verified — ${result.confidence}% confidence`);
+    } else {
+      status.textContent = `⚠️ Submitted, low confidence (${result.confidence}%)`;
+      status.style.color = 'var(--amber)';
+      toast(`⚠️ Report submitted — needs more detail (${result.confidence}%)`);
+    }
+
+    clearForm();
+    loadReports();
+  } catch (e) {
+    status.textContent = 'Error submitting';
+    status.style.color = 'var(--red)';
+    toast('❌ Submission error: ' + e.message);
+  }
+}
+
+// ── Clear form ────────────────────────────────────────────────────────
+function clearForm() {
+  document.getElementById('rLocation').value = '';
+  document.getElementById('rDescription').value = '';
+  document.getElementById('rName').value = '';
+  document.getElementById('rSeverity').value = 'Moderate';
+  document.getElementById('rAssigned').value = 'Control Room';
+  pickedLat = null; pickedLng = null;
+  document.getElementById('pickedLat').textContent = '—';
+  document.getElementById('pickedLng').textContent = '—';
+  if (pickMarker) { pickMap.removeLayer(pickMarker); pickMarker = null; }
+}
+
+// ── Load and render reports ───────────────────────────────────────────
+async function loadReports() {
+  try {
+    const reports = await api('/get_reports');
+
+    // Update stats
+    document.getElementById('totalReports').textContent = reports.length;
+    document.getElementById('verifiedReports').textContent = reports.filter(r => r.verified).length;
+    document.getElementById('criticalReports').textContent = reports.filter(r => r.severity === 'Critical').length;
+    document.getElementById('mappedReports').textContent = reports.filter(r => r.lat && r.lng).length;
+
+    // Clear old map markers
+    [...reportLayers.verified, ...reportLayers.unverified].forEach(l => reportsMap.removeLayer(l));
+    reportLayers.verified = []; reportLayers.unverified = [];
+
+    // Add markers to map
+    reports.forEach(rep => {
+      if (!rep.lat || !rep.lng) return;
+      const isV = rep.verified;
+      const color = isV ? '#00e676' : '#ffcc00';
+      const sevColor = rep.severity === 'Critical' ? '#ff2d55' : rep.severity === 'High' ? '#ff6b35' : rep.severity === 'Moderate' ? '#ffcc00' : '#00e676';
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="width:32px;height:32px;border-radius:50%;background:${color}22;border:2px solid ${color};display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 0 10px ${color}55">${isV ? '✅' : '⚠️'}</div>`,
+        iconSize: [32, 32], iconAnchor: [16, 16]
+      });
+      const m = L.marker([rep.lat, rep.lng], { icon })
+        .bindPopup(`
+          <b style="color:${sevColor}">${rep.severity.toUpperCase()} — ${rep.location}</b><br>
+          ${rep.description}<br>
+          <span style="font-size:11px;color:var(--t3)">By: ${rep.name || 'Anonymous'}</span><br>
+          AI: <b style="color:${isV ? '#00e676' : '#ffcc00'}">${isV ? '✅ Verified' : '⚠️ Unverified'}</b> (${rep.confidence}%)
+        `).addTo(reportsMap);
+
+      if (isV) reportLayers.verified.push(m);
+      else reportLayers.unverified.push(m);
+    });
+
+    // Render table
+    document.getElementById('reportsTable').innerHTML =
+      `<tr><th>Location</th><th>Severity</th><th>Description</th><th>AI Verified</th><th>Confidence</th><th>Assigned To</th></tr>` +
+      reports.map(rep => {
+        const sevCls = rep.severity === 'Critical' ? 't-red' : rep.severity === 'High' ? 't-red' : rep.severity === 'Moderate' ? 't-amber' : 't-green';
+        const vCls = rep.verified ? 't-green' : 't-amber';
+        const notes = (rep.verification_notes || []).join('; ');
+        return `<tr>
+          <td style="color:var(--t1);font-weight:600">${rep.location || '—'}</td>
+          <td><span class="tag ${sevCls}">${rep.severity}</span></td>
+          <td style="color:var(--t2);font-size:12px;max-width:200px">${rep.description || '—'}</td>
+          <td><span class="tag ${vCls}">${rep.verified ? '✅ YES' : '⚠️ NO'}</span></td>
+          <td>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="flex:1;height:4px;background:var(--b1);border-radius:2px;min-width:60px">
+                <div style="height:4px;border-radius:2px;background:${rep.confidence >= 70 ? '#00e676' : rep.confidence >= 50 ? '#ffcc00' : '#ff2d55'};width:${rep.confidence}%"></div>
+              </div>
+              <span style="font-size:11px;color:var(--t3);font-family:var(--f-mono)">${rep.confidence}%</span>
+            </div>
+            ${notes ? `<div style="font-size:10px;color:var(--t3);margin-top:3px">${notes}</div>` : ''}
+          </td>
+          <td style="color:var(--t3);font-size:12px">${rep.assigned_to || 'Control Room'}</td>
+        </tr>`;
+      }).join('');
+
+  } catch (e) {
+    document.getElementById('reportsTable').innerHTML =
+      `<tr><td colspan="6" style="color:var(--red);text-align:center;padding:20px">Error loading reports: ${e.message}</td></tr>`;
+  }
+}
+
+// ── Toggle report map layer ───────────────────────────────────────────
+function toggleReportLayer(type) {
+  reportVisible[type] = !reportVisible[type];
+  const btnId = { verified: 'btnVerified', unverified: 'btnUnverified', aidmg: 'btnAIDmg' }[type];
+  document.getElementById(btnId).classList.toggle('on', reportVisible[type]);
+  reportLayers[type].forEach(l => {
+    reportVisible[type] ? reportsMap.addLayer(l) : reportsMap.removeLayer(l);
+  });
+}
+
+// ── Init ──────────────────────────────────────────────────────────────
+async function init() {
+  renderDamageContext();
+  initPickMap();
+  await initReportsMap();
+  await loadReports();
+}
+
+init();
+</script>
+</body>
+</html>

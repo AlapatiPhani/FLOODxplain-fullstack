@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Infrastructure — FloodXPlain</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+<canvas id="bg-canvas"></canvas><div id="pt"></div>
+<nav>
+  <a href="/" class="logo"><div class="logo-mark">FXP</div>FloodXPlain</a>
+  <div class="vr"></div>
+      <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/static/damage.html"><span class="nav-ico">&#128308;</span>Damage</a>
+      <a href="/static/infrastructure.html" class="active"><span class="nav-ico">&#127959;</span>Infrastructure</a>
+      <a href="/static/recovery.html"><span class="nav-ico">&#128640;</span>Recovery</a>
+      <a href="/static/reporting.html"><span class="nav-ico">&#128226;</span>Reporting</a>
+  </div>
+  <div class="nav-end"><span class="pulse"></span><span class="nav-tag">MODULE 2 / 4</span></div>
+</nav>
+<main>
+  <div class="ph pe">
+    <div class="eyebrow"><span class="eyebrow-dot"></span> CRITICAL FACILITIES MONITORING</div>
+    <h1 class="page-title">Infrastructure Impact</h1>
+    <p class="page-sub">Search any location to fly the satellite map there — then see damage status of hospitals, bridges, and roads with interactive layer controls.</p>
+  </div>
+
+  <div id="sg" class="sg pe d1"></div>
+  <div id="damageContext"></div>
+
+  <!-- SEARCH + LAYER CONTROLS -->
+  <div class="toggle-strip pe d2">
+    <span class="ts-label">LAYERS</span>
+    <button class="tb on" data-type="hospital" onclick="toggle(this)"><span class="tb-dot" style="background:#ff2d55"></span> Hospitals</button>
+    <button class="tb on" data-type="bridge"   onclick="toggle(this)"><span class="tb-dot" style="background:#ffcc00"></span> Bridges</button>
+    <button class="tb on" data-type="road"     onclick="toggle(this)"><span class="tb-dot" style="background:#00b4ff"></span> Roads</button>
+    <span class="ts-sep"></span>
+    <div class="ts-legend">
+      <span class="tl-item"><span class="tl-dot" style="background:#ff2d55"></span>Damaged</span>
+      <span class="tl-item"><span class="tl-dot" style="background:#ffcc00"></span>Partial</span>
+      <span class="tl-item"><span class="tl-dot" style="background:#00e676"></span>Safe</span>
+    </div>
+    <div style="margin-left:auto;position:relative;min-width:220px">
+      <span class="search-icon">🔍</span>
+      <input class="search-input" id="srch" placeholder="Search location...">
+      <div class="search-results" id="sres"></div>
+    </div>
+  </div>
+
+  <div id="map" class="pe d3"></div>
+
+  <div class="card pe d4">
+    <div class="ct"><span class="ct-dot"></span> Infrastructure Status Detail</div>
+    <table class="dt" id="tbl">
+      <tr><th>Facility</th><th>Type</th><th>Status</th><th>Coordinates</th></tr>
+    </table>
+  </div>
+</main>
+<footer><strong>FloodXPlain</strong> · Module 2: Infrastructure Impact<span>VIT-AP 2026</span></footer>
+<div id="toast"></div>
+<script src="/static/app.js"></script>
+<script>
+let map;
+const markers=[];
+let facilityData=[];
+const active=new Set(['hospital','bridge','road']);
+
+
+
+function kmBetween(lat1,lng1,lat2,lng2) {
+  const R = 6371;
+  const dLat = (lat2-lat1) * Math.PI / 180;
+  const dLng = (lng2-lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) ** 2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function updateFacilityTable(origin) {
+  if (!facilityData.length) return;
+  document.getElementById('tbl').innerHTML =
+    `<tr><th>Facility</th><th>Type</th><th>Status</th><th>Distance</th><th>Coordinates</th></tr>`+
+    facilityData.map(m=>{
+      const cls=m.status==='damaged'?'t-red':m.status==='partial'?'t-amber':'t-green';
+      const dist=kmBetween(origin.lat, origin.lng, m.lat, m.lng).toFixed(1);
+      return `<tr><td>${m.name}</td><td><span class="tag t-teal">${m.type}</span></td><td><span class="tag ${cls}">${m.status.toUpperCase()}</span></td><td><span class="tag t-amber">${dist} km</span></td><td style="color:var(--t3);font-family:var(--f-mono)">${m.lat.toFixed(4)} N ${m.lng.toFixed(4)} E</td></tr>`;
+    }).join('');
+}
+
+async function getLatestDamageContext() {
+  let raw = localStorage.getItem('fxp_latest_damage');
+  if (!raw) {
+    try {
+      const res = await fetch('/latest_damage');
+      const data = await res.json();
+      if (data && Object.keys(data).length) {
+        raw = JSON.stringify(data);
+        localStorage.setItem('fxp_latest_damage', raw);
+      }
+    } catch (e) {}
+  }
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch (e) { return null; }
+}
+
+async function addDamageReportToMap() {
+  if (!map) return;
+  const d = await getLatestDamageContext();
+  if (!d) return;
+
+  const lat = Number(d.lat || 16.5);
+  const lng = Number(d.lng || 81.5);
+  const flood = d.label === 'Flooded';
+  const color = flood ? '#ff2d55' : '#00e676';
+  const radius = flood ? 13000 : 7000;
+
+  L.circle([lat, lng], {
+    radius,
+    color,
+    fillColor: color,
+    fillOpacity: 0.08,
+    weight: 2,
+    dashArray: '6,6'
+  }).addTo(map);
+
+  L.circleMarker([lat, lng], {
+    radius: 14,
+    color,
+    fillColor: color,
+    fillOpacity: 0.35,
+    weight: 2
+  }).bindPopup(`
+    <b style="color:${color}">Latest Damage Analysis</b><br>
+    Result: <b>${d.label || 'Unknown'}</b><br>
+    Severity: <b>${d.severity || 'N/A'}</b><br>
+    Confidence: <b>${d.confidence || 0}%</b><br>
+    Flood probability: <b>${d.flood_prob || 0}%</b>
+  `).addTo(map).openPopup();
+
+  map.flyTo([lat, lng], 9, { duration: 1.1 });
+}
+
+async function renderDamageContext() {
+  const host = document.getElementById('damageContext');
+  if (!host) return;
+  let raw = localStorage.getItem('fxp_latest_damage');
+  if (!raw) {
+    try {
+      const res = await fetch('/latest_damage');
+      const data = await res.json();
+      if (data && Object.keys(data).length) {
+        raw = JSON.stringify(data);
+        localStorage.setItem('fxp_latest_damage', raw);
+      }
+    } catch (e) {}
+  }
+  if (!raw) {
+    host.innerHTML = `
+      <div class="card pe d2" style="margin-bottom:14px">
+        <div class="ct"><span class="ct-dot"></span>Connected Damage Context</div>
+        <p style="color:var(--t2);margin-bottom:12px">No damage analysis has been shared yet. Run the Damage module first to connect AI classification results here.</p>
+        <a class="btn btn-ghost" href="/static/damage.html">Open Damage Assessment</a>
+      </div>`;
+    return;
+  }
+
+  try {
+    const d = JSON.parse(raw);
+    const isFlood = d.label === 'Flooded';
+    const badge = isFlood ? 't-red' : 't-green';
+    const metric = d.metrics || {};
+    host.innerHTML = `
+      <div class="card pe d2" style="margin-bottom:14px">
+        <div class="ct"><span class="ct-dot"></span>Connected Damage Context</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+          <span class="tag ${badge}">${d.label || 'Unknown'}</span>
+          <span class="tag t-teal">${d.severity || 'N/A'} risk</span>
+          <span class="tag t-amber">${d.confidence || 0}% confidence</span>
+          <span class="tag t-teal">${d.time || 'Latest session'}</span>
+        </div>
+        <p style="color:var(--t2);margin-bottom:12px">Use this result to prioritize damaged roads, hospitals, and bridges near the affected area.</p>
+        <div class="metrics-panel">
+          <div class="mp-row"><span class="mp-label">Flood probability</span><span class="mp-val">${d.flood_prob || 0}%</span></div>
+          <div class="mp-row"><span class="mp-label">Estimated flooded area</span><span class="mp-val">${metric.area_km2 || 'N/A'} km2</span></div>
+          <div class="mp-row"><span class="mp-label">Buildings affected</span><span class="mp-val">${metric.buildings || 'N/A'}</span></div>
+          <div class="mp-row"><span class="mp-label">Roads affected</span><span class="mp-val">${metric.road_km || 'N/A'} km</span></div>
+        </div>
+      </div>`;
+  } catch (e) {
+    host.innerHTML = '';
+  }
+}
+
+async function init() {
+  renderDamageContext();
+  const d=await api('/infrastructure');
+  facilityData=d.markers;
+  document.getElementById('sg').innerHTML=`
+    <div class="sc"><div class="sc-icon">🛣️</div><div class="sc-num" data-count="${d.roads_blocked}" style="color:var(--red)">${d.roads_blocked}</div><div class="sc-label">Roads Blocked</div></div>
+    <div class="sc"><div class="sc-icon">🏥</div><div class="sc-num" data-count="${d.hospitals_affected}" style="color:var(--amber)">${d.hospitals_affected}</div><div class="sc-label">Hospitals Affected</div></div>
+    <div class="sc"><div class="sc-icon">🌉</div><div class="sc-num" data-count="${d.bridges_damaged}" style="color:var(--red)">${d.bridges_damaged}</div><div class="sc-label">Bridges Damaged</div></div>
+    <div class="sc"><div class="sc-icon">⚠️</div><div class="sc-num" style="color:var(--orange)">${d.markers.filter(m=>m.status==='damaged').length}</div><div class="sc-label">Critical Alerts</div></div>`;
+
+  map=initMap('map');
+  bindSearch('srch','sres',map);
+  map.on('moveend',()=>updateFacilityTable(map.getCenter()));
+  addDamageReportToMap();
+
+  d.markers.forEach(m=>{
+    const col=statusColor(m.status);
+    const em=m.type==='hospital'?'🏥':m.type==='bridge'?'🌉':'🛣️';
+    const icon=createCustomIcon(em,col);
+    const mk=L.marker([m.lat,m.lng],{icon})
+      .bindPopup(`<b>${m.name}</b><br>Type: ${m.type}<br>Status: <b style="color:${col}">${m.status.toUpperCase()}</b>`)
+      .addTo(map);
+    markers.push({mk,type:m.type});
+  });
+
+  updateFacilityTable(map.getCenter());
+}
+
+function toggle(btn) {
+  const t=btn.dataset.type;
+  btn.classList.toggle('on');
+  active.has(t)?active.delete(t):active.add(t);
+  markers.forEach(({mk,type})=>active.has(type)?map.addLayer(mk):map.removeLayer(mk));
+}
+
+function statusColor(s){return s==='damaged'?'#ff2d55':s==='partial'?'#ffcc00':'#00e676'}
+function createCustomIcon(emoji,color){
+  return L.divIcon({className:'',html:`<div style="width:36px;height:36px;border-radius:50%;background:${color}22;border:2px solid ${color};display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 0 12px ${color}55">${emoji}</div>`,iconSize:[36,36],iconAnchor:[18,18]});
+}
+
+init();
+</script>
+</body>
+</html>

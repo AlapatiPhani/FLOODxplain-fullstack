@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Recovery Planning — FloodXPlain</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+<canvas id="bg-canvas"></canvas>
+<div id="pt"></div>
+
+<nav>
+  <a href="/" class="logo"><div class="logo-mark">FXP</div>FloodXPlain</a>
+  <div class="vr"></div>
+  <div class="nav-links">
+    <a href="/">Home</a>
+    <a href="/static/damage.html"><span class="nav-ico">&#128308;</span>Damage</a>
+    <a href="/static/infrastructure.html"><span class="nav-ico">&#127959;</span>Infrastructure</a>
+    <a href="/static/recovery.html" class="active"><span class="nav-ico">&#128640;</span>Recovery</a>
+    <a href="/static/reporting.html"><span class="nav-ico">&#128226;</span>Reporting</a>
+  </div>
+  <div class="nav-end"><span class="pulse"></span><span class="nav-tag">MODULE 3 / 4</span></div>
+</nav>
+
+<main>
+  <div class="ph pe">
+    <div class="eyebrow"><span class="eyebrow-dot"></span> RECOVERY PLANNING &amp; SAFE ZONES</div>
+    <h1 class="page-title">Recovery Planning</h1>
+    <p class="page-sub">Safe zone detection, rescue staging areas, risk zones, and recovery timelines — driven by the latest AI damage analysis.</p>
+  </div>
+
+  <!-- CONNECTED DAMAGE CONTEXT BANNER -->
+  <div id="damageContext" class="pe d1"></div>
+
+  <!-- STATS GRID -->
+  <div class="sg pe d2" id="statsGrid">
+    <div class="sc"><div class="sc-icon">⚠️</div><div class="sc-num" style="color:var(--red)" id="highRiskVal">—</div><div class="sc-label">High Risk Zones</div></div>
+    <div class="sc"><div class="sc-icon">🟡</div><div class="sc-num" style="color:var(--amber)" id="medRiskVal">—</div><div class="sc-label">Medium Risk Zones</div></div>
+    <div class="sc"><div class="sc-icon">📅</div><div class="sc-num" style="color:var(--teal)" id="weeksVal">—</div><div class="sc-label">Est. Recovery Weeks</div></div>
+    <div class="sc"><div class="sc-icon">🛡️</div><div class="sc-num" style="color:var(--green)" id="safeVal">—</div><div class="sc-label">Safe Zones Identified</div></div>
+  </div>
+
+  <!-- MAP LAYER CONTROLS -->
+  <div class="toggle-strip pe d3">
+    <span class="ts-label">LAYERS</span>
+    <button class="tb on" id="btnRisk"   onclick="toggleLayer('risk')"><span class="tb-dot" style="background:#ff2d55"></span> Risk Zones</button>
+    <button class="tb on" id="btnSafe"   onclick="toggleLayer('safe')"><span class="tb-dot" style="background:#00e676"></span> Safe Zones</button>
+    <button class="tb on" id="btnRescue" onclick="toggleLayer('rescue')"><span class="tb-dot" style="background:#ff6b35"></span> Rescue Staging</button>
+    <button class="tb on" id="btnDamage" onclick="toggleLayer('damage')"><span class="tb-dot" style="background:var(--teal)"></span> AI Damage Pin</button>
+    <span class="ts-sep"></span>
+    <div class="ts-legend">
+      <span class="tl-item"><span class="tl-dot" style="background:#ff2d55"></span>HIGH risk</span>
+      <span class="tl-item"><span class="tl-dot" style="background:#ffcc00"></span>MEDIUM risk</span>
+      <span class="tl-item"><span class="tl-dot" style="background:#00e676"></span>SAFE zone</span>
+    </div>
+  </div>
+
+  <div id="map" class="pe d3"></div>
+
+  <!-- RISK ZONE TABLE -->
+  <div class="card pe d4" style="margin-top:14px">
+    <div class="ct"><span class="ct-dot"></span> Risk Zone Recovery Timeline</div>
+    <table class="dt" id="recoveryTable">
+      <tr><th>Zone</th><th>Risk Level</th><th>Est. Recovery</th><th>Coordinates</th></tr>
+    </table>
+  </div>
+
+  <!-- SAFE ZONES TABLE -->
+  <div class="card pe d4" style="margin-top:14px">
+    <div class="ct"><span class="ct-dot"></span> Identified Safe Zones &amp; Staging Areas</div>
+    <table class="dt" id="safeTable">
+      <tr><th>Location</th><th>Elevation</th><th>Capacity</th><th>Status</th></tr>
+    </table>
+  </div>
+</main>
+
+<footer>
+  <strong>FloodXPlain</strong> · Module 3: Recovery Planning · Safe Zone Detection + Rescue Staging
+  <span>VIT-AP 2026</span>
+</footer>
+<div id="toast"></div>
+
+<script src="/static/app.js"></script>
+<script>
+let map;
+const layerGroups = { risk: [], safe: [], rescue: [], damage: [] };
+const layerVisible = { risk: true, safe: true, rescue: true, damage: true };
+
+// ── Safe zone data (AP Godavari region elevated areas) ────────────────
+const SAFE_ZONES = [
+  { name: "Papi Hills, East Godavari", lat: 17.22, lng: 81.58, elevation: 312, capacity: 800 },
+  { name: "Nallamala Foothills, Guntur", lat: 16.05, lng: 79.85, elevation: 245, capacity: 1200 },
+  { name: "Kondapalli Fort Area, Vijayawada", lat: 16.62, lng: 80.54, elevation: 183, capacity: 600 },
+  { name: "Indrakeeladri Hill, Vijayawada", lat: 16.51, lng: 80.61, elevation: 94, capacity: 400 },
+  { name: "Kolleru Lake Bund (Eastern), Eluru", lat: 16.60, lng: 81.22, elevation: 42, capacity: 950 },
+  { name: "Rajanagaram Uplands, Rajam.", lat: 17.05, lng: 81.90, elevation: 56, capacity: 700 },
+];
+
+// ── Rescue staging zones ──────────────────────────────────────────────
+const RESCUE_ZONES = [
+  { name: "Rajahmundry Railway Grounds", lat: 17.00, lng: 81.77, type: "Helipad + Ground", capacity: 500, road: "NH16 — Direct", priority: "HIGH" },
+  { name: "Vijayawada Airport Buffer", lat: 16.53, lng: 80.80, type: "Air + Ground", capacity: 1000, road: "NH16 — 4km", priority: "HIGH" },
+  { name: "Eluru Government College Grounds", lat: 16.71, lng: 81.10, type: "Ground Staging", capacity: 350, road: "SH41 — Direct", priority: "MEDIUM" },
+  { name: "Bhimavaram Town Stadium", lat: 16.54, lng: 81.52, type: "Ground Staging", capacity: 400, road: "NH-214 — 2km", priority: "MEDIUM" },
+  { name: "Kakinada Port Area", lat: 16.94, lng: 82.24, type: "Sea + Ground", capacity: 600, road: "NH216 — Direct", priority: "HIGH" },
+];
+
+// ── Get damage context from localStorage or API ───────────────────────
+async function getDamageContext() {
+  let raw = localStorage.getItem('fxp_latest_damage');
+  if (!raw) {
+    try {
+      const res = await fetch('/latest_damage');
+      const data = await res.json();
+      if (data && Object.keys(data).length) {
+        raw = JSON.stringify(data);
+        localStorage.setItem('fxp_latest_damage', raw);
+      }
+    } catch (e) {}
+  }
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch (e) { return null; }
+}
+
+// ── Render connected damage banner ────────────────────────────────────
+async function renderDamageContext() {
+  const host = document.getElementById('damageContext');
+  const d = await getDamageContext();
+
+  if (!d || !Object.keys(d).length) {
+    host.innerHTML = `
+      <div class="card" style="margin-bottom:14px;border:1px solid var(--b1);padding:18px 22px;border-radius:var(--r)">
+        <div class="ct"><span class="ct-dot"></span> Connected Damage Context</div>
+        <p style="color:var(--t2);margin-bottom:12px">No damage analysis connected yet. Run the Damage module first to see AI-driven recovery priorities here.</p>
+        <a class="btn btn-ghost" href="/static/damage.html">→ Open Damage Assessment</a>
+      </div>`;
+    return null;
+  }
+
+  const isFlood = d.label === 'Flooded';
+  const badge = isFlood ? 't-red' : 't-green';
+  const m = d.metrics || {};
+
+  host.innerHTML = `
+    <div class="card" style="margin-bottom:14px;border:1px solid var(--b1);padding:18px 22px;border-radius:var(--r)">
+      <div class="ct"><span class="ct-dot"></span> Connected Damage Context
+        <span style="margin-left:auto;font-size:10px;color:var(--t3);font-family:var(--f-mono)">${d.time || 'Latest session'}</span>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 12px">
+        <span class="tag ${badge}">${d.label || 'Unknown'}</span>
+        <span class="tag t-teal">${d.severity || 'N/A'} risk</span>
+        <span class="tag t-amber">${d.confidence || 0}% confidence</span>
+        <span class="tag t-teal">Flood prob: ${d.flood_prob || 0}%</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
+        <div style="background:var(--surface-2,#0d1f2d);border-radius:8px;padding:12px 14px">
+          <div style="font-size:11px;color:var(--t3);font-family:var(--f-mono);margin-bottom:4px">FLOODED AREA</div>
+          <div style="font-size:20px;font-family:var(--f-display);font-weight:700;color:var(--teal)">${m.area_km2 || 'N/A'} <span style="font-size:12px;color:var(--t2)">km²</span></div>
+        </div>
+        <div style="background:var(--surface-2,#0d1f2d);border-radius:8px;padding:12px 14px">
+          <div style="font-size:11px;color:var(--t3);font-family:var(--f-mono);margin-bottom:4px">BUILDINGS</div>
+          <div style="font-size:20px;font-family:var(--f-display);font-weight:700;color:var(--amber)">${m.buildings ? Number(m.buildings).toLocaleString('en-IN') : 'N/A'}</div>
+        </div>
+        <div style="background:var(--surface-2,#0d1f2d);border-radius:8px;padding:12px 14px">
+          <div style="font-size:11px;color:var(--t3);font-family:var(--f-mono);margin-bottom:4px">ROADS</div>
+          <div style="font-size:20px;font-family:var(--f-display);font-weight:700;color:var(--red)">${m.road_km || 'N/A'} <span style="font-size:12px;color:var(--t2)">km</span></div>
+        </div>
+        <div style="background:var(--surface-2,#0d1f2d);border-radius:8px;padding:12px 14px">
+          <div style="font-size:11px;color:var(--t3);font-family:var(--f-mono);margin-bottom:4px">CROPS</div>
+          <div style="font-size:20px;font-family:var(--f-display);font-weight:700;color:var(--green)">${m.crop_ha || 'N/A'} <span style="font-size:12px;color:var(--t2)">ha</span></div>
+        </div>
+      </div>
+      ${isFlood ? `<div style="margin-top:12px;padding:10px 14px;background:rgba(255,45,85,0.07);border:1px solid rgba(255,45,85,0.2);border-radius:8px;font-size:12px;color:var(--t2)">
+        ⚠️ <b style="color:var(--red)">Flood detected</b> — Recovery priorities and safe zones updated based on AI classification result.
+      </div>` : `<div style="margin-top:12px;padding:10px 14px;background:rgba(0,230,118,0.07);border:1px solid rgba(0,230,118,0.2);border-radius:8px;font-size:12px;color:var(--t2)">
+        ✅ <b style="color:var(--green)">No flood detected</b> — Area appears safe. Safe zones shown as precautionary staging.
+      </div>`}
+    </div>`;
+  return d;
+}
+
+// ── Render risk zone table ─────────────────────────────────────────────
+function renderRecoveryTable(zones) {
+  document.getElementById('recoveryTable').innerHTML =
+    `<tr><th>Zone</th><th>Risk Level</th><th>Est. Recovery</th><th>Coordinates</th></tr>` +
+    zones.map(z => {
+      const cls = z.risk === 'HIGH' ? 't-red' : z.risk === 'MEDIUM' ? 't-amber' : 't-green';
+      return `<tr>
+        <td style="color:var(--t1);font-weight:600">${z.name}</td>
+        <td><span class="tag ${cls}">${z.risk}</span></td>
+        <td style="color:var(--teal);font-family:var(--f-mono)">${z.weeks} weeks</td>
+        <td style="color:var(--t3);font-family:var(--f-mono)">${z.lat.toFixed(4)}N ${z.lng.toFixed(4)}E</td>
+      </tr>`;
+    }).join('');
+}
+
+// ── Render safe zones table ────────────────────────────────────────────
+function renderSafeTable() {
+  document.getElementById('safeTable').innerHTML =
+    `<tr><th>Location</th><th>Elevation</th><th>Capacity</th><th>Status</th></tr>` +
+    SAFE_ZONES.map(z => `<tr>
+      <td style="color:var(--t1);font-weight:600">${z.name}</td>
+      <td style="color:var(--teal);font-family:var(--f-mono)">${z.elevation}m</td>
+      <td style="color:var(--t2)">${z.capacity.toLocaleString('en-IN')} persons</td>
+      <td><span class="tag t-green">STAGING ELIGIBLE</span></td>
+    </tr>`).join('');
+}
+
+// ── Add risk zone circles to map ───────────────────────────────────────
+function addRiskZones(zones) {
+  zones.forEach(z => {
+    const color = z.risk === 'HIGH' ? '#ff2d55' : z.risk === 'MEDIUM' ? '#ffcc00' : '#00e676';
+    const radius = z.risk === 'HIGH' ? 14000 : z.risk === 'MEDIUM' ? 10000 : 6000;
+    const circle = L.circle([z.lat, z.lng], {
+      radius, color, fillColor: color, fillOpacity: 0.1, weight: 2, dashArray: '6,4'
+    }).bindPopup(`
+      <b style="color:${color}">${z.risk} RISK ZONE</b><br>
+      <strong>${z.name}</strong><br>
+      Est. Recovery: <b>${z.weeks} weeks</b>
+    `).addTo(map);
+    const marker = L.circleMarker([z.lat, z.lng], {
+      radius: 10, color, fillColor: color, fillOpacity: 0.5, weight: 2
+    }).addTo(map);
+    layerGroups.risk.push(circle, marker);
+  });
+}
+
+// ── Add safe zone markers ──────────────────────────────────────────────
+function addSafeZoneMarkersToMap() {
+  SAFE_ZONES.forEach(z => {
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="width:36px;height:36px;border-radius:50%;background:rgba(0,230,118,0.15);border:2px solid #00e676;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 0 12px rgba(0,230,118,0.4)">🛡️</div>`,
+      iconSize: [36, 36], iconAnchor: [18, 18]
+    });
+    const m = L.marker([z.lat, z.lng], { icon })
+      .bindPopup(`
+        <b style="color:#00e676">✅ SAFE ZONE</b><br>
+        <strong>${z.name}</strong><br>
+        Elevation: <b>${z.elevation}m</b><br>
+        Capacity: <b>${z.capacity.toLocaleString('en-IN')} persons</b><br>
+        <span style="font-size:11px;color:#00e676;background:rgba(0,230,118,0.1);padding:2px 8px;border-radius:4px;border:1px solid rgba(0,230,118,0.3)">STAGING ELIGIBLE</span>
+      `).addTo(map);
+    layerGroups.safe.push(m);
+  });
+}
+
+// ── Add rescue staging zones ───────────────────────────────────────────
+function addRescueStagingZones() {
+  RESCUE_ZONES.forEach(z => {
+    const color = z.priority === 'HIGH' ? '#ff6b35' : '#ffcc00';
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="width:36px;height:36px;border-radius:8px;background:${color}22;border:2px solid ${color};display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 0 12px ${color}66">⛺</div>`,
+      iconSize: [36, 36], iconAnchor: [18, 18]
+    });
+    const m = L.marker([z.lat, z.lng], { icon })
+      .bindPopup(`
+        <b style="color:${color}">⛺ RESCUE STAGING ZONE</b><br>
+        <strong>${z.name}</strong><br>
+        Type: <b>${z.type}</b><br>
+        Capacity: <b>${z.capacity} personnel</b><br>
+        Road access: <b>${z.road}</b><br>
+        <span style="font-size:11px;color:${color};background:${color}22;padding:2px 8px;border-radius:4px;border:1px solid ${color}55">PRIORITY ${z.priority}</span>
+      `).addTo(map);
+    layerGroups.rescue.push(m);
+  });
+}
+
+// ── Add AI damage pin from damage module ──────────────────────────────
+function addDamagePin(d) {
+  if (!d) return;
+  const lat = Number(d.lat || 16.5);
+  const lng = Number(d.lng || 81.5);
+  const isFlood = d.label === 'Flooded';
+  const color = isFlood ? '#ff2d55' : '#00e676';
+
+  const circle = L.circle([lat, lng], {
+    radius: isFlood ? 15000 : 8000,
+    color, fillColor: color, fillOpacity: 0.07, weight: 2, dashArray: '4,4'
+  }).addTo(map);
+
+  const marker = L.circleMarker([lat, lng], {
+    radius: 15, color, fillColor: color, fillOpacity: 0.3, weight: 2
+  }).bindPopup(`
+    <b style="color:${color}">🤖 AI DAMAGE RESULT</b><br>
+    Classification: <b>${d.label}</b><br>
+    Severity: <b>${d.severity}</b><br>
+    Confidence: <b>${d.confidence}%</b><br>
+    Flood probability: <b>${d.flood_prob}%</b><br>
+    <span style="font-size:11px;color:var(--t3)">Source: Damage Assessment Module</span>
+  `).addTo(map).openPopup();
+
+  layerGroups.damage.push(circle, marker);
+}
+
+// ── Layer toggle ──────────────────────────────────────────────────────
+function toggleLayer(type) {
+  layerVisible[type] = !layerVisible[type];
+  const btn = document.getElementById('btn' + type.charAt(0).toUpperCase() + type.slice(1));
+  btn.classList.toggle('on', layerVisible[type]);
+  layerGroups[type].forEach(l => {
+    layerVisible[type] ? map.addLayer(l) : map.removeLayer(l);
+  });
+}
+
+// ── Main init ─────────────────────────────────────────────────────────
+async function init() {
+  const dmg = await renderDamageContext();
+
+  const rec = await api('/recovery');
+
+  // Update stats
+  document.getElementById('highRiskVal').textContent = rec.high_risk_zones;
+  document.getElementById('medRiskVal').textContent = rec.medium_risk;
+  document.getElementById('weeksVal').textContent = rec.recovery_weeks;
+  document.getElementById('safeVal').textContent = SAFE_ZONES.length;
+
+  renderRecoveryTable(rec.zones);
+  renderSafeTable();
+
+  map = initMap('map', 16.7, 81.3, 8);
+  setTimeout(() => map.invalidateSize(), 80);
+
+  addRiskZones(rec.zones);
+  addSafeZoneMarkersToMap();
+  addRescueStagingZones();
+  addDamagePin(dmg);
+
+  setTimeout(() => map.invalidateSize(), 220);
+}
+
+init();
+</script>
+</body>
+</html>
