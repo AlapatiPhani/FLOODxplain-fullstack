@@ -1,5 +1,7 @@
 # 🌊 FLOODxplain
 
+To run this project you need model to be in your project folder make download the model folder attached below(## 📚 Supporting Documentation)which is in  google drive
+
 > **Explainable AI for flood detection, impact assessment, infrastructure monitoring, recovery planning, and field reporting.**
 
 FLOODxplain is a full-stack disaster-response application that combines a deep-learning flood classifier with explainable AI, interactive maps, infrastructure information, recovery planning tools, and crowdsourced field reports.
