@@ -1,0 +1,76 @@
+[
+  {
+    "location": "vijayawada",
+    "severity": "Moderate",
+    "description": "bomb",
+    "name": "Likith",
+    "lat": 16.5115306,
+    "lng": 80.6160469,
+    "time": "Just now",
+    "verified": false,
+    "confidence": 65,
+    "verification_notes": [
+      "description needs more detail",
+      "description does not mention flood-related conditions"
+    ]
+  },
+  {
+    "location": "vijayawada",
+    "severity": "Low",
+    "description": "ate",
+    "name": "",
+    "lat": 16.5115306,
+    "lng": 80.6160469,
+    "time": "Just now",
+    "verified": false,
+    "confidence": 65,
+    "verification_notes": [
+      "description needs more detail",
+      "description does not mention flood-related conditions"
+    ]
+  },
+  {
+    "location": "mangalagiri",
+    "severity": "Critical",
+    "description": "nothing",
+    "name": "",
+    "lat": 16.4318209,
+    "lng": 80.5688069,
+    "time": "Just now",
+    "verified": false,
+    "confidence": 55,
+    "verification_notes": [
+      "description needs more detail",
+      "description does not mention flood-related conditions",
+      "severity is not supported by the description"
+    ]
+  },
+  {
+    "location": "ainavolu",
+    "severity": "Low",
+    "description": "Rain",
+    "name": "",
+    "lat": 16.4873041,
+    "lng": 80.5032849,
+    "time": "Just now",
+    "verified": true,
+    "confidence": 80,
+    "verification_notes": [
+      "description needs more detail"
+    ]
+  },
+  {
+    "location": "vijayawada",
+    "severity": "Low",
+    "description": "Rain",
+    "name": "",
+    "lat": 16.5115306,
+    "lng": 80.6160469,
+    "time": "Just now",
+    "verified": true,
+    "confidence": 80,
+    "verification_notes": [
+      "description needs more detail"
+    ]
+  }
+]

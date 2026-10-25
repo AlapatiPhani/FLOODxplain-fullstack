@@ -1,0 +1,16 @@
+{
+  "label": "Flooded",
+  "severity": "HIGH",
+  "confidence": 96.9,
+  "flood_prob": 96.9,
+  "safe_prob": 3.1,
+  "metrics": {
+    "area_km2": "48.7",
+    "buildings": 1240,
+    "crop_ha": 320,
+    "road_km": "34.2"
+  },
+  "lat": 16.5,
+  "lng": 81.5,
+  "time": "14 May 2026, 9:03 am"
+}
